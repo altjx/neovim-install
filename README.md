@@ -5,7 +5,7 @@ One-line installer for [altjx/nvim-configs](https://github.com/altjx/nvim-config
 ## Quick Install
 
 ```bash
-curl -fsSL https://alton.sh/install.sh | bash
+curl -fsSL https://alton.sh/nvim | bash
 ```
 
 ## What It Does
