@@ -68,33 +68,6 @@ chmod +x install.sh
 
 4. Install a [Nerd Font](https://www.nerdfonts.com/) for proper icon display
 
-## Hosting This Script
-
-### GitHub Pages (Recommended)
-
-1. Enable GitHub Pages in repository settings
-2. Set source to `main` branch, root directory
-3. Add custom domain `alton.sh` in settings
-4. Configure DNS:
-   ```
-   Type: CNAME
-   Name: alton.sh (or @)
-   Value: <username>.github.io
-   ```
-
-### Raw GitHub URL
-
-Direct link to raw file:
-```bash
-curl -fsSL https://raw.githubusercontent.com/altjx/neovim-install/main/install.sh | bash
-```
-
-### Cloudflare Pages
-
-1. Connect GitHub repo to Cloudflare Pages
-2. Set custom domain to `alton.sh`
-3. Auto-deploys on every push
-
 ## Troubleshooting
 
 **Script fails with permission errors:**
