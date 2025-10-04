@@ -1,0 +1,271 @@
+#!/bin/bash
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Configuration
+NVIM_CONFIG_DIR="$HOME/.config/nvim"
+NVIM_DATA_DIR="$HOME/.local/share/nvim"
+NVIM_STATE_DIR="$HOME/.local/state/nvim"
+NVIM_CACHE_DIR="$HOME/.cache/nvim"
+REPO_URL="https://github.com/altjx/nvim-configs.git"
+BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# Helper functions
+print_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Check if running on supported OS
+check_os() {
+    print_info "Checking operating system..."
+
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        OS=$ID
+        if [[ "$OS" == "ubuntu" ]] || [[ "$OS" == "debian" ]]; then
+            print_success "Detected supported OS: $OS"
+            return 0
+        fi
+    fi
+
+    print_warning "OS may not be fully supported. Proceeding anyway..."
+}
+
+# Install Neovim
+install_neovim() {
+    if command_exists nvim; then
+        NVIM_VERSION=$(nvim --version | head -n1 | grep -oP 'v\K[0-9.]+')
+        print_success "Neovim is already installed (version $NVIM_VERSION)"
+
+        # Check if version is >= 0.10.0
+        if [[ $(echo -e "0.10.0\n$NVIM_VERSION" | sort -V | head -n1) == "0.10.0" ]]; then
+            return 0
+        else
+            print_warning "Neovim version $NVIM_VERSION is below 0.10.0. Upgrading..."
+        fi
+    else
+        print_info "Neovim not found. Installing..."
+    fi
+
+    # Update package lists
+    print_info "Updating package lists..."
+    sudo apt-get update -qq
+
+    # Install dependencies
+    print_info "Installing Neovim dependencies..."
+    sudo apt-get install -y -qq software-properties-common
+
+    # Add Neovim PPA for latest stable version
+    print_info "Adding Neovim stable PPA..."
+    sudo add-apt-repository -y ppa:neovim-ppa/stable
+    sudo apt-get update -qq
+
+    # Install Neovim
+    print_info "Installing Neovim..."
+    sudo apt-get install -y -qq neovim
+
+    if command_exists nvim; then
+        NVIM_VERSION=$(nvim --version | head -n1 | grep -oP 'v\K[0-9.]+')
+        print_success "Neovim $NVIM_VERSION installed successfully"
+    else
+        print_error "Failed to install Neovim"
+        exit 1
+    fi
+}
+
+# Install prerequisites
+install_prerequisites() {
+    print_info "Installing prerequisites..."
+
+    # Install git
+    if ! command_exists git; then
+        print_info "Installing git..."
+        sudo apt-get install -y -qq git
+    else
+        print_success "git is already installed"
+    fi
+
+    # Install fd-find
+    if ! command_exists fd && ! command_exists fdfind; then
+        print_info "Installing fd-find..."
+        sudo apt-get install -y -qq fd-find
+        # Create symlink for fd if it's installed as fdfind
+        if command_exists fdfind && ! command_exists fd; then
+            sudo ln -s $(which fdfind) /usr/local/bin/fd 2>/dev/null || true
+        fi
+    else
+        print_success "fd is already installed"
+    fi
+
+    # Install ripgrep
+    if ! command_exists rg; then
+        print_info "Installing ripgrep..."
+        sudo apt-get install -y -qq ripgrep
+    else
+        print_success "ripgrep is already installed"
+    fi
+
+    # Install build essentials (needed for some treesitter parsers)
+    print_info "Installing build essentials..."
+    sudo apt-get install -y -qq build-essential
+
+    # Install Node.js (for LSP servers)
+    if ! command_exists node; then
+        print_info "Installing Node.js..."
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+        sudo apt-get install -y -qq nodejs
+    else
+        print_success "Node.js is already installed ($(node --version))"
+    fi
+
+    print_success "All prerequisites installed"
+}
+
+# Backup existing Neovim configuration
+backup_config() {
+    local backed_up=false
+
+    if [[ -d "$NVIM_CONFIG_DIR" ]] || [[ -f "$NVIM_CONFIG_DIR" ]]; then
+        print_warning "Existing Neovim config found at $NVIM_CONFIG_DIR"
+        print_info "Backing up to ${NVIM_CONFIG_DIR}.backup_${BACKUP_TIMESTAMP}"
+        mv "$NVIM_CONFIG_DIR" "${NVIM_CONFIG_DIR}.backup_${BACKUP_TIMESTAMP}"
+        backed_up=true
+    fi
+
+    if [[ -d "$NVIM_DATA_DIR" ]]; then
+        print_info "Backing up Neovim data directory to ${NVIM_DATA_DIR}.backup_${BACKUP_TIMESTAMP}"
+        mv "$NVIM_DATA_DIR" "${NVIM_DATA_DIR}.backup_${BACKUP_TIMESTAMP}"
+        backed_up=true
+    fi
+
+    if [[ -d "$NVIM_STATE_DIR" ]]; then
+        print_info "Backing up Neovim state directory to ${NVIM_STATE_DIR}.backup_${BACKUP_TIMESTAMP}"
+        mv "$NVIM_STATE_DIR" "${NVIM_STATE_DIR}.backup_${BACKUP_TIMESTAMP}"
+        backed_up=true
+    fi
+
+    if [[ -d "$NVIM_CACHE_DIR" ]]; then
+        print_info "Cleaning Neovim cache directory..."
+        rm -rf "$NVIM_CACHE_DIR"
+        backed_up=true
+    fi
+
+    if [[ "$backed_up" == true ]]; then
+        print_success "Backup completed"
+    else
+        print_info "No existing configuration found, proceeding with fresh install"
+    fi
+}
+
+# Clone the repository
+clone_repo() {
+    print_info "Cloning nvim-configs from $REPO_URL..."
+
+    # Ensure parent directory exists
+    mkdir -p "$(dirname "$NVIM_CONFIG_DIR")"
+
+    if git clone "$REPO_URL" "$NVIM_CONFIG_DIR"; then
+        print_success "Repository cloned successfully"
+
+        # Remove .git directory to make it independent
+        print_info "Removing .git directory..."
+        rm -rf "$NVIM_CONFIG_DIR/.git"
+
+        return 0
+    else
+        print_error "Failed to clone repository"
+        exit 1
+    fi
+}
+
+# Install optional Ruby tools (if Ruby is detected)
+install_ruby_tools() {
+    if command_exists ruby && command_exists gem; then
+        print_info "Ruby detected. Installing optional Ruby LSP and tools..."
+
+        # Check if bundler is available
+        if ! command_exists bundle; then
+            print_info "Installing bundler..."
+            gem install bundler --no-document
+        fi
+
+        print_info "Installing ruby-lsp and rubocop..."
+        gem install ruby-lsp rubocop --no-document
+
+        print_success "Ruby tools installed"
+    else
+        print_info "Ruby not detected. Skipping Ruby LSP installation."
+        print_info "Install Ruby later if you need Ruby development support."
+    fi
+}
+
+# Main installation process
+main() {
+    echo ""
+    echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║  Neovim Configuration Installer       ║${NC}"
+    echo -e "${BLUE}║  https://github.com/altjx/nvim-configs║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+    echo ""
+
+    # Check if running as root
+    if [[ $EUID -eq 0 ]]; then
+        print_error "This script should not be run as root"
+        print_info "Run without sudo. The script will prompt for sudo when needed."
+        exit 1
+    fi
+
+    check_os
+    install_neovim
+    install_prerequisites
+    backup_config
+    clone_repo
+    install_ruby_tools
+
+    echo ""
+    echo -e "${GREEN}╔════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  Installation completed successfully! ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
+    echo ""
+    print_info "Next steps:"
+    echo "  1. Launch Neovim with: ${GREEN}nvim${NC}"
+    echo "  2. Lazy.nvim will automatically install all plugins"
+    echo "  3. Wait for all plugins to install (you'll see progress)"
+    echo "  4. Restart Neovim after installation completes"
+    echo ""
+
+    if [[ -d "${NVIM_CONFIG_DIR}.backup_${BACKUP_TIMESTAMP}" ]]; then
+        print_info "Your old config was backed up to:"
+        echo "  ${NVIM_CONFIG_DIR}.backup_${BACKUP_TIMESTAMP}"
+        echo ""
+    fi
+
+    print_info "To install a Nerd Font for better icons:"
+    echo "  Visit: https://www.nerdfonts.com/"
+    echo ""
+}
+
+# Run the installation
+main
