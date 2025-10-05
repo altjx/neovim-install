@@ -76,22 +76,28 @@ install_neovim() {
         print_info "Neovim not found. Installing..."
     fi
 
-    # Update package lists
-    print_info "Updating package lists..."
-    $SUDO_CMD apt-get update -qq
+    # Download and install latest Neovim from GitHub releases
+    print_info "Downloading latest stable Neovim release from GitHub..."
 
     # Install dependencies
-    print_info "Installing Neovim dependencies..."
-    $SUDO_CMD apt-get install -y -qq software-properties-common
-
-    # Add Neovim PPA for latest stable version
-    print_info "Adding Neovim stable PPA..."
-    $SUDO_CMD add-apt-repository -y ppa:neovim-ppa/stable
     $SUDO_CMD apt-get update -qq
+    $SUDO_CMD apt-get install -y -qq curl tar
 
-    # Install Neovim
-    print_info "Installing Neovim..."
-    $SUDO_CMD apt-get install -y -qq neovim
+    # Get the latest release URL
+    NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz"
+    INSTALL_DIR="/opt/nvim"
+
+    # Download and extract
+    print_info "Installing Neovim to $INSTALL_DIR..."
+    cd /tmp
+    curl -fsSL "$NVIM_URL" -o nvim-linux64.tar.gz
+    $SUDO_CMD rm -rf "$INSTALL_DIR"
+    $SUDO_CMD mkdir -p "$INSTALL_DIR"
+    $SUDO_CMD tar -xzf nvim-linux64.tar.gz -C "$INSTALL_DIR" --strip-components=1
+    rm nvim-linux64.tar.gz
+
+    # Create symlink to make nvim available globally
+    $SUDO_CMD ln -sf "$INSTALL_DIR/bin/nvim" /usr/local/bin/nvim
 
     if command_exists nvim; then
         NVIM_VERSION=$(nvim --version | head -n1 | grep -oP 'v\K[0-9.]+')
