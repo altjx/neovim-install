@@ -16,6 +16,13 @@ NVIM_CACHE_DIR="$HOME/.cache/nvim"
 REPO_URL="https://github.com/altjx/nvim-configs.git"
 BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
+# Determine if we need sudo (not needed if running as root)
+if [[ $EUID -eq 0 ]]; then
+    SUDO_CMD=""
+else
+    SUDO_CMD="sudo"
+fi
+
 # Helper functions
 print_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -71,20 +78,20 @@ install_neovim() {
 
     # Update package lists
     print_info "Updating package lists..."
-    sudo apt-get update -qq
+    $SUDO_CMD apt-get update -qq
 
     # Install dependencies
     print_info "Installing Neovim dependencies..."
-    sudo apt-get install -y -qq software-properties-common
+    $SUDO_CMD apt-get install -y -qq software-properties-common
 
     # Add Neovim PPA for latest stable version
     print_info "Adding Neovim stable PPA..."
-    sudo add-apt-repository -y ppa:neovim-ppa/stable
-    sudo apt-get update -qq
+    $SUDO_CMD add-apt-repository -y ppa:neovim-ppa/stable
+    $SUDO_CMD apt-get update -qq
 
     # Install Neovim
     print_info "Installing Neovim..."
-    sudo apt-get install -y -qq neovim
+    $SUDO_CMD apt-get install -y -qq neovim
 
     if command_exists nvim; then
         NVIM_VERSION=$(nvim --version | head -n1 | grep -oP 'v\K[0-9.]+')
@@ -102,7 +109,7 @@ install_prerequisites() {
     # Install git
     if ! command_exists git; then
         print_info "Installing git..."
-        sudo apt-get install -y -qq git
+        $SUDO_CMD apt-get install -y -qq git
     else
         print_success "git is already installed"
     fi
@@ -110,10 +117,10 @@ install_prerequisites() {
     # Install fd-find
     if ! command_exists fd && ! command_exists fdfind; then
         print_info "Installing fd-find..."
-        sudo apt-get install -y -qq fd-find
+        $SUDO_CMD apt-get install -y -qq fd-find
         # Create symlink for fd if it's installed as fdfind
         if command_exists fdfind && ! command_exists fd; then
-            sudo ln -s $(which fdfind) /usr/local/bin/fd 2>/dev/null || true
+            $SUDO_CMD ln -s $(which fdfind) /usr/local/bin/fd 2>/dev/null || true
         fi
     else
         print_success "fd is already installed"
@@ -122,20 +129,20 @@ install_prerequisites() {
     # Install ripgrep
     if ! command_exists rg; then
         print_info "Installing ripgrep..."
-        sudo apt-get install -y -qq ripgrep
+        $SUDO_CMD apt-get install -y -qq ripgrep
     else
         print_success "ripgrep is already installed"
     fi
 
     # Install build essentials (needed for some treesitter parsers)
     print_info "Installing build essentials..."
-    sudo apt-get install -y -qq build-essential
+    $SUDO_CMD apt-get install -y -qq build-essential
 
     # Install Node.js (for LSP servers)
     if ! command_exists node; then
         print_info "Installing Node.js..."
-        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-        sudo apt-get install -y -qq nodejs
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | $SUDO_CMD -E bash -
+        $SUDO_CMD apt-get install -y -qq nodejs
     else
         print_success "Node.js is already installed ($(node --version))"
     fi
