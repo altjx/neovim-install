@@ -76,6 +76,13 @@ install_neovim() {
         print_info "Neovim not found. Installing..."
     fi
 
+    # Remove any old Neovim installations
+    if command_exists apt-get; then
+        print_info "Removing old Neovim installations..."
+        $SUDO_CMD apt-get remove -y -qq neovim 2>/dev/null || true
+        $SUDO_CMD apt-get autoremove -y -qq 2>/dev/null || true
+    fi
+
     # Download and install latest Neovim from GitHub releases
     print_info "Downloading latest stable Neovim release from GitHub..."
 
