@@ -154,7 +154,11 @@ install_prerequisites() {
     # Install Node.js (for LSP servers)
     if ! command_exists node; then
         print_info "Installing Node.js..."
-        curl -fsSL https://deb.nodesource.com/setup_lts.x | $SUDO_CMD -E bash -
+        if [[ -z "$SUDO_CMD" ]]; then
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+        else
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | $SUDO_CMD -E bash -
+        fi
         $SUDO_CMD apt-get install -y -qq nodejs
     else
         print_success "Node.js is already installed ($(node --version))"
